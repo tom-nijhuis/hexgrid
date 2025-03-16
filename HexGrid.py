@@ -114,6 +114,8 @@ class HexCell:
 
 
 
+    def __truediv__(self, other):
+        return 1/other*self
     def __mul__(self, other): # implement self*other
         return HexCell(self.q*other, self.r*other)
     __rmul__ = __mul__
@@ -130,6 +132,27 @@ class HexCell:
     def __abs__(self):
         q,r,s = self.qrs
         return (abs(q)+abs(r) + abs(s) ) //2
+
+    def __round__(self):
+        """ Implements cube rounding """
+        q,r,s = (round(t) for t in self.qrs)
+        q_diff = abs(q - self.q)
+        r_diff = abs(r - self.r)
+        s_diff = abs(s - self.s)
+        if q_diff > r_diff and q_diff > s_diff:
+            q = -(r)-(s)
+        elif r_diff > s_diff:
+            r = -(q)-(s)
+        else:
+            s = -(q)-(r)
+        return HexCell(q,r,s)
+
+
+    def generate_line_to(self, other):
+        dist = abs(other-self)
+        for i in range(0,dist+1):
+            yield round(self + i / dist * (other - self))
+
 
 
     def generate_span(self, max_dist):
@@ -195,8 +218,14 @@ def drawHexes(hexes, colours = []):
 if __name__ == "__main__":
     
     h = HexCell(0,0)
+    hexes= list(h.generate_line_to(HexCell(11, 6)))
 
-    drawHexes(h.generate_circle(4))
+
+    # h = HexCell(1.2,3.4)
+    # print(h)
+    # print(round(h))
+
+    drawHexes(hexes)
     
 
     
