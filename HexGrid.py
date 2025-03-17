@@ -92,6 +92,7 @@ class HexCell:
         if q+r+s!=0:
             raise HexCell.AxesException(f'Axes mismatch. q+r+s!=0 ({q}+{r}+{s}!=0)')
         self.q, self.r = q,r
+        self.data = dict()
 
     @property
     def s(self): # The third axis is calculated from the first two.
@@ -186,7 +187,7 @@ class HexCell:
         return self.qrs == other.qrs
 
 
-def drawHexes(hexes, colours = []):
+def drawHexes(hexes, colours = [], file = None):
     # Create a figure and an axis
     fig, ax = plt.subplots()
 
@@ -210,8 +211,13 @@ def drawHexes(hexes, colours = []):
     ax.set_aspect('equal')
 
 
-    # Show the plot
-    plt.show()
+    if not file:
+        # Show the plot
+        plt.show()
+    else:
+        # Save the plot
+        plt.savefig(file)
+    plt.close()
 
 
 
