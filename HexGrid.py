@@ -76,15 +76,17 @@ class HexCell:
             super().__init__(self, message)
 
 
-    def __new__(cls, *args):
+    def __new__(cls, *args, singleInstance=True):
         # Create new if it does not exist yet. 
         # This assures that coordinates always point to the same instance
+        if not singleInstance:
+            return super(HexCell,cls).__new__(cls)
         if args not in cls._instances:
             cls._instances[args] = super(HexCell, cls).__new__(cls)
         return cls._instances[args]
 
 
-    def __init__(self, q, r, s = None):
+    def __init__(self, q, r, s = None, singleInstance=True):
         # Set axes
         q = q if not q is None else -r-s # Axial coordinate q
         r = r if not r is None else -q-s # Axial coordinate r
@@ -92,6 +94,7 @@ class HexCell:
         if q+r+s!=0:
             raise HexCell.AxesException(f'Axes mismatch. q+r+s!=0 ({q}+{r}+{s}!=0)')
         self.q, self.r = q,r
+        self._temp = singleInstance
         self.data = dict()
 
     @property
@@ -222,19 +225,9 @@ def drawHexes(hexes, colours = [], file = None):
 
 
 if __name__ == "__main__":
-    
+
     h = HexCell(0,0)
-    hexes= list(h.generate_line_to(HexCell(11, 6)))
-
-
-    # h = HexCell(1.2,3.4)
-    # print(h)
-    # print(round(h))
-
-    drawHexes(hexes)
-    
-
-    
+    drawHexes(h.generate_disc(5))
 
 
 
