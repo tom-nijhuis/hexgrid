@@ -58,17 +58,31 @@ class HalvesSqrt3:
 
 
 class HexCell:
-    _instances = {} # Store earlier instances
+    _instance_cache = {} # Store earlier instances
+
+    @classmethod
+    def reset_instance_cache(cls):
+        """Reset the instances dictionary to empty."""
+        cls._instance_cache.clear()
 
     UNIT_CORNERS = [(math.cos(i*math.pi/3), math.sin(i*math.pi/3)) for i in range(6) ]
     DIRECTIONS = [ # Todo: Do these directions match the ordering of the unit corners?
-            (+1, 0, -1), 
-            (+1, -1, 0), 
-            (0, -1, +1), 
-            (-1, 0, +1), 
-            (-1, +1, 0), 
-            (0, +1, -1),
+            (+1,  0), #, -1), 
+            (+1, -1), #, 0), 
+            ( 0, -1), #, +1), 
+            (-1,  0), #, +1), 
+            (-1, +1), #, 0), 
+            ( 0, +1), #, -1),
     ]
+
+    def axes_parse(q=None,r=None,s=None):
+        q = q if q is not None else -r-s # Axial coordinate q
+        r = r if r is not None else -q-s # Axial coordinate r
+        s = s if s is not None else -q-r # Axial coordinate s
+        if q+r+s!=0:
+            raise HexCell.AxesException(f'Axes mismatch. q+r+s!=0 ({q}+{r}+{s}!=0)')
+        return q,r
+        
 
     class AxesException(Exception):
         def __init__(self, message):
@@ -76,26 +90,28 @@ class HexCell:
             super().__init__(self, message)
 
 
-    def __new__(cls, *args, singleInstance=True):
+    def __new__(cls, q=None ,r=None ,s=None, singleInstance=True):
         # Create new if it does not exist yet. 
         # This assures that coordinates always point to the same instance
-        if not singleInstance:
-            return super(HexCell,cls).__new__(cls)
-        if args not in cls._instances:
-            cls._instances[args] = super(HexCell, cls).__new__(cls)
-        return cls._instances[args]
+        qr = HexCell.axes_parse(q,r,s)
+        if singleInstance and qr in cls._instance_cache:
+            new = cls._instance_cache[qr]
+        else: #either not single instance, or an uncached instance is made
+            new = super(HexCell, cls).__new__(cls)
+            new.q, new.r = qr
+            new.initialised = False
+            if singleInstance:
+                cls._instance_cache[qr] = new
+        return new
 
 
-    def __init__(self, q, r, s = None, singleInstance=True):
+    def __init__(self, q=None, r=None, s=None, singleInstance=True):
         # Set axes
-        q = q if not q is None else -r-s # Axial coordinate q
-        r = r if not r is None else -q-s # Axial coordinate r
-        s = s if not s is None else -q-r # Axial coordinate s
-        if q+r+s!=0:
-            raise HexCell.AxesException(f'Axes mismatch. q+r+s!=0 ({q}+{r}+{s}!=0)')
-        self.q, self.r = q,r
-        self._temp = singleInstance
-        self.data = dict()
+        # self.q, self.r = HexCell.axes_parse(q,r,s) # already covered in __new__
+        if not self.initialised:
+            self.data = dict()
+            self.initialised = True # Don't run initialisation twice
+            self.singleInstance = singleInstance
 
     @property
     def s(self): # The third axis is calculated from the first two.
@@ -107,28 +123,34 @@ class HexCell:
 
     @property
     def neighbours(self):
-        yield from [self + HexCell(*self.DIRECTIONS[i]) for i in range(6) ]
+        yield from [self + HexCell(*self.DIRECTIONS[i], singleInstance = self.singleInstance) for i in range(6) ]
 
     @property
     def polygon(self):
-        size = 1 
-        px = size * (                                    3 /2 * self.r)
-        py = size * (math.sqrt(3) * self.q  +  math.sqrt(3)/2 * self.r)
-        return [(px + size*x, py + size*y) for (x,y) in self.UNIT_CORNERS]
+        px,py = self.xy
+        return [(px + x/2, py + y/2) for (x,y) in self.UNIT_CORNERS]
+
+
+    @property
+    def xy(self):
+        """ Pixel coordinates x, y of the centre """
+        px = (                                    3 /2 * self.r)/2
+        py = (math.sqrt(3) * self.q  +  math.sqrt(3)/2 * self.r)/2
+        return px,py
 
 
 
     def __truediv__(self, other):
         return 1/other*self
     def __mul__(self, other): # implement self*other
-        return HexCell(self.q*other, self.r*other)
+        return HexCell(self.q*other, self.r*other, singleInstance = self.singleInstance)
     __rmul__ = __mul__
 
     def __neg__(self):
         return -1*self
 
     def __add__(self, other):
-        return HexCell(self.q + other.q, self.r + other.r)
+        return HexCell(self.q + other.q, self.r + other.r, singleInstance = self.singleInstance and other.singleInstance)
 
     def __sub__(self, other): # self-other
         return self + -other
@@ -149,13 +171,14 @@ class HexCell:
             r = -(q)-(s)
         else:
             s = -(q)-(r)
-        return HexCell(q,r,s)
+        return HexCell(q,r, singleInstance = self.singleInstance)
 
 
     def generate_line_to(self, other):
         dist = abs(other-self)
+        step = (other-self)/dist # Step Hex (float!)
         for i in range(0,dist+1):
-            yield round(self + i / dist * (other - self))
+            yield round(self + i*step)
 
 
 
@@ -176,12 +199,25 @@ class HexCell:
             for j in range(0, dist):
                 yield h+j*HexCell(*self.DIRECTIONS[(i+2)%6])
 
+    def rot60(self, n=1):
+        """
+              [ q,  r,  s]
+        to        [-r, -s, -q]
+        to           [  s,  q,  r]
+        """
+        if n == 0: return self # todo: Implement negative rotation
+        if n > 0:
+            return HexCell(-self.r, -self.s, -self.q, singleInstance=self.singleInstance).rot60(n-1)
+        if n < 0:
+            return HexCell(-self.s, -self.q, -self.r, singleInstance=self.singleInstance).rot60(n+1)
+
+        
 
     def __repr__(self):
         return f'HexCell @ {self.qrs}'
 
     def __hash__(self):
-        return (self.q,self.r).__hash__()
+        return (self.q,self.r,self.singleInstance).__hash__()
 
     def __lt__(self, other):
         return self.qrs < other.qrs
@@ -199,13 +235,17 @@ def drawHexes(hexes, colours = [], file = None):
     # Pad the iterator with 'lightblue' if it runs out
     colours = chain(colours, iter(lambda : 'lightblue', None))
     for hex, col in zip(hexes, colours):
-
+        if 'colour' in hex.data:
+            col = hex.data['colour']
         vertices = hex.polygon
         for x,y in vertices:
            xmin,xmax = min(xmin, x), max(xmax, x)
            ymin,ymax = min(ymin, y), max(ymax, y)
         polygon = patches.Polygon(vertices, closed=True, fill=True, edgecolor='black', facecolor=col)
         ax.add_patch(polygon)
+        if 'text' in hex.data:
+            x,y = hex.xy
+            ax.text(x - .1, y - .1, hex.data['text'])
 
 
     # Set limits and aspect
@@ -225,16 +265,12 @@ def drawHexes(hexes, colours = [], file = None):
 
 
 if __name__ == "__main__":
+    h1 = HexCell(2,4)
+    h2 = HexCell(2,4)
+    m1 = HexCell(2,4, singleInstance=False)
 
-    h = HexCell(0,0)
-    drawHexes(h.generate_disc(5))
+    # print(list(h1.neighbours))
 
-
-
-
-
-
-
-
-
+    print(list(m1.neighbours))
+    # print((2 * HexCell(1,2, singleInstance=False)).data)
 
