@@ -230,8 +230,8 @@ def drawHexes(hexes, colours = [], file = None):
     # Create a figure and an axis
     fig, ax = plt.subplots()
 
-    xmin, xmax = 0,0
-    ymin, ymax = 0,0
+    xmin, xmax = float('inf'), -float('inf')
+    ymin, ymax = float('inf'), -float('inf')
     # Pad the iterator with 'lightblue' if it runs out
     colours = chain(colours, iter(lambda : 'lightblue', None))
     for hex, col in zip(hexes, colours):
@@ -249,8 +249,8 @@ def drawHexes(hexes, colours = [], file = None):
 
 
     # Set limits and aspect
-    ax.set_xlim(xmin*1.1, xmax*1.1)
-    ax.set_ylim(ymin*1.1, ymax*1.1)
+    ax.set_xlim(xmin-.2, xmax+.2)
+    ax.set_ylim(ymin-.2, ymax+.2)
     ax.set_aspect('equal')
 
 
@@ -265,12 +265,13 @@ def drawHexes(hexes, colours = [], file = None):
 
 
 if __name__ == "__main__":
-    h1 = HexCell(2,4)
-    h2 = HexCell(2,4)
-    m1 = HexCell(2,4, singleInstance=False)
+    m1 = HexCell(0,1)
 
-    # print(list(h1.neighbours))
 
-    print(list(m1.neighbours))
-    # print((2 * HexCell(1,2, singleInstance=False)).data)
+    for i,n in enumerate(m1.neighbours):
+        n.data['index'] = i
+
+    print(HexCell(0,0).data)
+
+    drawHexes(HexCell(1200, 1400).neighbours)
 
